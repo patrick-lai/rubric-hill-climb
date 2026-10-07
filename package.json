@@ -1,0 +1,10 @@
+{
+  "name": "rubric-hill-climb",
+  "version": "0.1.0",
+  "description": "A skill for rubric-scored hill climbing: fixed rubric, identical iterations, regression locks and explicit stop rules",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/patrick-lai/rubric-hill-climb.git" },
+  "files": ["skills/", "scripts/decide.mjs", "LICENSE"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test" }
+}
