@@ -2,7 +2,7 @@
 
 A skill for iterating on work against a scored rubric without drifting or looping forever.
 
-It fixes two problems with "hill climb this until it is 8/10":
+It fixes two problems with "hill climb this until it is 8/10" and "keep fixing until the reviewer approves":
 
 - **No standard.** The rubric (weighted criteria, anchored 0 to 10 scales, evidence, gates, target, budget) is written once, before iteration 1, and is frozen for the run. The baseline is scored with it, and every attempt follows the same six steps.
 - **Back and forth near 8/10.** An attempt is kept only if it beats the best score by more than the measured noise and no earlier win drops by more than 0.5. Anything else is reverted, so the working tree only moves up. Feedback is mapped to a criterion and applied one focus at a time.

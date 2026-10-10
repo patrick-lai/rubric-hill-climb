@@ -1,11 +1,11 @@
 ---
 name: rubric-hill-climb
-description: Use when asked to hill climb, iterate until a score like 8/10, or keep improving work against feedback. Freezes a scored rubric, runs identical iterations that keep only measured gains, guards against regressions and flip-flopping, and stops on success, budget, plateau or diminishing returns.
+description: Use when asked to hill climb, iterate until a score like 8/10, keep improving work against feedback, or repeat review, critique or fix rounds until approved. Freezes a scored rubric, runs identical iterations that keep only measured gains, guards against regressions and flip-flopping, and stops on success, budget, plateau or diminishing returns.
 ---
 
 # Rubric hill climbing
 
-Use this when asked to "hill climb", polish, iterate until it scores N/10, or keep improving something against feedback. It makes every iteration the same, keeps only changes that measurably help, and says when to stop. Two failures it prevents: a different standard each run, and flip-flopping near 8/10 because each fix breaks something already fixed.
+Use this when asked to "hill climb", polish, iterate until it scores N/10, keep improving something against feedback, or repeat review, critique or fix rounds until a reviewer approves. It makes every iteration the same, keeps only changes that measurably help, and says when to stop. Two failures it prevents: a different standard each run, and flip-flopping near 8/10 because each fix breaks something already fixed.
 
 ## 1. Freeze the rubric before iteration 1
 
