@@ -32,8 +32,9 @@ Total is the weighted mean. `floor` defaults to target minus 1.5: success needs 
 Score the untouched work with the rubric first (iteration 0). The baseline is the number every later attempt must beat.
 
 **Grader rules** (the same for every score in the run):
-- The author never scores its own work. Use a fresh context that sees the artifact, rubric and evidence only: not earlier scores, earlier feedback or what changed.
-- Same grader, same prompt, same evidence method all run. Changing the grader makes scores incomparable.
+- The author never scores its own work. Every score uses a fresh context. Do not keep one judge alive across iterations: it anchors on its own earlier numbers, roots for changes it watched, and after compaction it is a new judge that still remembers old scores.
+- What keeps fresh judges consistent is a **calibration pack**, written once after the baseline and frozen with the rubric: the rubric with its anchors, the baseline artifact, and its baseline scores with their evidence notes. Every judge gets the pack, so one judge's 7 means what the last one's did. It never sees later scores, feedback or what changed. Save it beside the rubric as `calibration.md`.
+- Same grader model, same prompt, same evidence method all run. Changing the grader makes scores incomparable.
 - 3 independent samples; take the median per criterion in 0.5 steps, with a one-line evidence note each. `spread` is the largest minus smallest sample total. Deterministic checks need one sample.
 - A score below 8 must name the defect (file and line, screenshot, failing check). No named defect, no deduction.
 
@@ -41,19 +42,21 @@ Score the untouched work with the rubric first (iteration 0). The baseline is th
 
 1. **Pick one focus**: the criterion with the largest weight times gap to target, skipping capped criteria. One focus per attempt; feedback on other criteria waits.
 2. **Make the smallest change that moves that criterion**, then checkpoint it (commit or snapshot) so it can be undone.
-3. **Re-score every criterion**, not only the focus. Regressions hide in the criteria you were not looking at.
+3. **Compare with the best kept version, then re-score every criterion**, not only the focus. Regressions hide in the criteria you were not looking at. Each judge gets the calibration pack and both versions labelled X and Y, in a random order per sample, never called old or new. For every criterion it says whether Y is better, the same or worse than X and names the defect that differs; no named defect means the same. The majority of 3 samples goes in `vs_best` (no majority means the same). A machine-decided criterion takes its verdict from the two measurements. The judge also scores the attempt on the anchored scale.
 4. **Decide keep or revert** (rules below). A reverted attempt is undone in the tree, so the tree always holds the best kept version.
-5. **Append one ledger line**: `{"iter":3,"focus":"robust","scores":{"correct":8,"robust":7.5,"polish":7},"spread":0.3,"gates":true,"change":"retry on timeout"}`. The first line is iteration 0 with the baseline scores and no focus.
+5. **Append one ledger line**: `{"iter":3,"focus":"robust","scores":{"correct":8,"robust":7.5,"polish":7},"vs_best":{"correct":"same","robust":"better","polish":"same"},"spread":0.3,"gates":true,"change":"retry on timeout"}`. The first line is iteration 0 with the baseline scores and no focus.
 6. **Check the stop rules.** Stop, or go to step 1.
 
 ### Keep or revert
 
 Keep only when all hold:
 - gates pass;
-- total beats the best kept total by at least `max(min_gain, spread)` (default 0.25), so noise never counts as progress;
-- no criterion fell more than `regression_tolerance` (0.5) below its best kept score. Those best scores are locks: a win stays won.
+- the focus criterion is judged better than the best kept version;
+- no criterion is judged worse. Those comparisons are the locks: a win stays won.
 
-A fix that raises the total but breaks a lock is reverted and noted as a trade-off.
+A kept score moves only for a criterion judged better, and only up; a criterion judged the same keeps its kept score. So a number that bounces while the work stays the same never moves the run. A fix that improves the focus but is judged worse elsewhere is reverted and noted as a trade-off.
+
+When no side-by-side comparison is possible (the best kept version cannot be shown again), leave `vs_best` out and fall back to the scores: keep only when the total beats the best kept total by at least `max(min_gain, spread)` (default 0.25) and no criterion fell more than `regression_tolerance` (0.5) below its best kept score.
 
 ### Handling feedback
 
@@ -68,7 +71,7 @@ Check after every attempt, in this order. The first match ends the run.
 | Stop | When | Then |
 | --- | --- | --- |
 | success | total at least target and every criterion at least the floor, gates pass | ship the kept version |
-| conflict | two attempts were reverted for dropping the same criterion | criteria trade off; ask the user |
+| conflict | two attempts were reverted for making the same criterion worse | criteria trade off; ask the user |
 | budget | attempts used equal the budget | ship the best kept version |
 | plateau | `patience` (2) attempts in a row were reverted | more tries are not helping |
 | diminishing returns | best total plus the reachable remainder is still under target | target is out of reach, stop early |

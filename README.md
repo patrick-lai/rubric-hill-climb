@@ -5,7 +5,7 @@ A skill for iterating on work against a scored rubric without drifting or loopin
 It fixes two problems with "hill climb this until it is 8/10" and "keep fixing until the reviewer approves":
 
 - **No standard.** The rubric (weighted criteria, anchored 0 to 10 scales, evidence, gates, target, budget) is written once, before iteration 1, and is frozen for the run. The baseline is scored with it, and every attempt follows the same six steps.
-- **Back and forth near 8/10.** An attempt is kept only if it beats the best score by more than the measured noise and no earlier win drops by more than 0.5. Anything else is reverted, so the working tree only moves up. Feedback is mapped to a criterion and applied one focus at a time.
+- **Back and forth near 8/10.** Fresh judges share one frozen calibration pack (rubric anchors plus the scored baseline) and compare each attempt side by side with the best kept version. An attempt is kept only if it is judged better on its focus and worse on nothing, and a score moves only where a judge saw a real difference, so numbers that bounce on unchanged work never move the run. Anything else is reverted, so the working tree only moves up. Feedback is mapped to a criterion and applied one focus at a time.
 
 It also decides when to stop: success, budget, plateau (2 reverted attempts in a row), conflict (the same criterion broken twice), capped criteria and diminishing returns (the projected remaining gain cannot reach the target).
 
@@ -36,6 +36,12 @@ node scripts/decide.mjs rubric.json ledger.jsonl
 ```
 
 That ledger stops with `diminishing_returns`: the totals go 6.0, 6.83, 7.13; the last gain (0.3) is about a third of the one before, so at most 0.17 more is reachable and 7.3 stays under 8.
+
+Add `vs_best` to an attempt to decide it by side-by-side comparison instead of by score gain: `better`, `same` or `worse` for every criterion. It is kept when its focus is `better` and nothing is `worse`; only criteria judged `better` can raise their kept score. Without `vs_best` the score rule above applies.
+
+```jsonl
+{"iter":3,"focus":"polish","scores":{"correct":7.8,"robust":7.0,"polish":7.5},"vs_best":{"correct":"same","robust":"same","polish":"better"},"gates":true}
+```
 
 Defaults: target 8, 6 attempts, minimum gain 0.25, regression tolerance 0.5, patience 2, floor target minus 1.5.
 

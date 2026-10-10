@@ -6,6 +6,8 @@ export const DEFAULTS = { target: 8, max_iterations: 6, min_gain: 0.25, regressi
 
 const round = (value) => Math.round(value * 1000) / 1000;
 
+const COMPARISONS = ["better", "same", "worse"];
+
 export class InputError extends Error {}
 
 function fail(message) {
@@ -65,6 +67,33 @@ function checkRecord(config, record, position) {
   }
   if (record.spread !== undefined && (typeof record.spread !== "number" || record.spread < 0)) fail(`${label} spread must be a non-negative number`);
   if (position > 0 && (typeof record.focus !== "string" || !config.criteria.some((criterion) => criterion.id === record.focus))) fail(`${label} needs a focus that names a criterion`);
+  if (record.vs_best === undefined) return;
+  if (position === 0) fail(`${label} is the baseline and has nothing to compare against`);
+  if (typeof record.vs_best !== "object" || record.vs_best === null) fail(`${label} vs_best must be an object`);
+  for (const { id } of config.criteria) {
+    if (!COMPARISONS.includes(record.vs_best[id])) fail(`${label} vs_best needs better, same or worse for ${id}`);
+  }
+}
+
+function judgeByScores(config, kept, best, record, gates) {
+  const candidate = total(config, record.scores);
+  const need = Math.max(config.min_gain, record.spread ?? 0);
+  const regressed = config.criteria.filter(({ id }) => record.scores[id] < best[id] - config.regression_tolerance).map(({ id }) => id);
+  let reason = "ok";
+  if (!gates) reason = "gate";
+  else if (regressed.length > 0) reason = "regression";
+  else if (candidate < kept.total + need) reason = "no_gain";
+  return { scores: { ...record.scores }, candidate, needed: round(need), reason, regressed };
+}
+
+function judgeByComparison(config, kept, record, gates) {
+  const regressed = config.criteria.filter(({ id }) => record.vs_best[id] === "worse").map(({ id }) => id);
+  let reason = "ok";
+  if (!gates) reason = "gate";
+  else if (regressed.length > 0) reason = "regression";
+  else if (record.vs_best[record.focus] !== "better") reason = "no_gain";
+  const scores = Object.fromEntries(config.criteria.map(({ id }) => [id, record.vs_best[id] === "better" ? Math.max(kept.scores[id], record.scores[id]) : kept.scores[id]]));
+  return { scores, candidate: total(config, scores), needed: null, reason, regressed };
 }
 
 export function total(config, scores) {
@@ -84,20 +113,16 @@ export function replay(config, records) {
   const history = [kept];
   const verdicts = [];
   for (const record of records.slice(1)) {
-    const candidate = total(config, record.scores);
-    const need = Math.max(config.min_gain, record.spread ?? 0);
     const gates = record.gates !== false;
-    const regressed = config.criteria.filter(({ id }) => record.scores[id] < best[id] - config.regression_tolerance).map(({ id }) => id);
-    let reason = "ok";
-    if (!gates) reason = "gate";
-    else if (regressed.length > 0) reason = "regression";
-    else if (candidate < kept.total + need) reason = "no_gain";
+    const compared = record.vs_best !== undefined;
+    const { scores, candidate, needed, reason, regressed } = compared ? judgeByComparison(config, kept, record, gates) : judgeByScores(config, kept, best, record, gates);
     const accepted = reason === "ok";
-    verdicts.push({ iter: record.iter, focus: record.focus, total: candidate, gain: round(candidate - kept.total), needed: round(need), accepted, reason, regressed });
+    verdicts.push({ iter: record.iter, focus: record.focus, total: candidate, gain: round(candidate - kept.total), needed, compared, accepted, reason, regressed });
     if (accepted) {
-      kept = { iter: record.iter, scores: { ...record.scores }, total: candidate, gates };
-      for (const { id } of config.criteria) best[id] = Math.max(best[id], record.scores[id]);
-      history.push(kept);
+      const rose = candidate > kept.total;
+      kept = { iter: record.iter, scores, total: candidate, gates };
+      for (const { id } of config.criteria) best[id] = Math.max(best[id], scores[id]);
+      if (rose || !compared) history.push(kept);
     }
   }
   return { kept, best, history, verdicts };

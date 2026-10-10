@@ -158,3 +158,65 @@ test("bad inputs fail with a plain message", () => {
   assert.throws(() => decide(rubric({ max_iterations: 99 }), [record(0, { correct: 6, robust: 6, polish: 6 })]), /max_iterations/);
   assert.throws(() => parseLedger("{nope"), /not JSON/);
 });
+
+const same = { correct: "same", robust: "same", polish: "same" };
+
+test("scores that bounce on work judged the same never move the run and plateau stops it", () => {
+  const result = run([
+    record(0, { correct: 7, robust: 7, polish: 7 }),
+    record(1, { correct: 8, robust: 7, polish: 7 }, { focus: "correct", vs_best: same }),
+    record(2, { correct: 6.5, robust: 8, polish: 7 }, { focus: "correct", vs_best: same }),
+  ]);
+  assert.equal(result.reason, "plateau");
+  assert.equal(result.best_iter, 0);
+  assert.equal(result.best_total, 7);
+  assert.equal(result.latest.compared, true);
+});
+
+test("an attempt judged better on its focus and worse on nothing is kept and only the better criterion moves", () => {
+  const result = run([
+    record(0, { correct: 6, robust: 7, polish: 5 }),
+    record(1, { correct: 7, robust: 6, polish: 6 }, { focus: "correct", vs_best: { ...same, correct: "better" } }),
+  ]);
+  assert.equal(result.latest.accepted, true);
+  assert.equal(result.best_iter, 1);
+  assert.equal(result.best_total, round3((3 * 7 + 2 * 7 + 5) / 6));
+});
+
+test("a criterion judged better never drops its kept score when the absolute number came back lower", () => {
+  const result = run([
+    record(0, { correct: 7, robust: 7, polish: 5 }),
+    record(1, { correct: 6.5, robust: 7, polish: 5 }, { focus: "correct", vs_best: { ...same, correct: "better" } }),
+  ]);
+  assert.equal(result.latest.accepted, true);
+  assert.equal(result.latest.gain, 0);
+  assert.equal(result.best_total, round3((3 * 7 + 2 * 7 + 5) / 6));
+});
+
+test("an attempt judged worse on any criterion is reverted whatever the totals say, and twice is a conflict", () => {
+  const worse = { correct: "better", robust: "worse", polish: "same" };
+  const once = run([record(0, { correct: 6, robust: 8, polish: 6 }), record(1, { correct: 9, robust: 8, polish: 6 }, { focus: "correct", vs_best: worse })]);
+  assert.equal(once.latest.reason, "regression");
+  assert.deepEqual(once.latest.regressed, ["robust"]);
+  const twice = run([
+    record(0, { correct: 6, robust: 8, polish: 6 }),
+    record(1, { correct: 9, robust: 8, polish: 6 }, { focus: "correct", vs_best: worse }),
+    record(2, { correct: 9, robust: 8, polish: 6 }, { focus: "correct", vs_best: worse }),
+  ]);
+  assert.equal(twice.reason, "conflict");
+});
+
+test("an attempt whose focus is judged the same is reverted even when its scores rose", () => {
+  const result = run([record(0, { correct: 6, robust: 6, polish: 6 }), record(1, { correct: 8, robust: 8, polish: 8 }, { focus: "correct", vs_best: same })]);
+  assert.equal(result.latest.reason, "no_gain");
+  assert.equal(result.best_iter, 0);
+});
+
+test("a comparison on the baseline or with an unknown verdict is rejected", () => {
+  assert.throws(() => run([record(0, { correct: 6, robust: 6, polish: 6 }, { vs_best: same })]), InputError);
+  assert.throws(() => run([record(0, { correct: 6, robust: 6, polish: 6 }), record(1, { correct: 7, robust: 6, polish: 6 }, { focus: "correct", vs_best: { ...same, polish: "maybe" } })]), InputError);
+});
+
+function round3(value) {
+  return Math.round(value * 1000) / 1000;
+}
